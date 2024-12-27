@@ -1,11 +1,10 @@
-// Content.js
-
 console.log("AI Assistant Extension loaded");
 
 class ChatbotManager {
   constructor() {
     this.chatbotInjected = false;
     this.currentPath = "";
+    this.aiChat = null;
     this.setupUrlMonitoring();
     this.setupDOMMonitoring();
   }
@@ -28,7 +27,6 @@ class ChatbotManager {
   }
 
   setupDOMMonitoring() {
-    // Watch for content changes that might affect our chat position
     const observer = new MutationObserver((mutations) => {
       if (!this.currentPath.startsWith("/problems/")) return;
 
@@ -38,7 +36,6 @@ class ChatbotManager {
       const chatContainer = document.getElementById("chat-container");
 
       if (targetElement && chatContainer) {
-        // Ensure chat container is the last element
         if (targetElement.lastElementChild !== chatContainer.parentElement) {
           console.log("Reordering chat to bottom");
           this.moveToBottom(targetElement);
@@ -65,18 +62,31 @@ class ChatbotManager {
     }
   }
 
-  handleUrlChange() {
+  async handleUrlChange() {
     const newPath = window.location.pathname;
     console.log("URL changed to:", newPath);
 
+    // Clean up old instance if exists
+    if (this.aiChat) {
+      await this.cleanupAIChat();
+    }
+
     if (newPath.startsWith("/problems/")) {
       this.removeChatbot();
-      this.injectChatbot();
+      await this.injectChatbot();
     } else {
       this.removeChatbot();
     }
 
     this.currentPath = newPath;
+  }
+
+  async cleanupAIChat() {
+    if (this.aiChat) {
+      // Remove event listeners
+      this.aiChat.cleanup();
+      this.aiChat = null;
+    }
   }
 
   repositionChatbot(targetElement) {
@@ -96,7 +106,6 @@ class ChatbotManager {
   removeChatbot() {
     const chatContainer = document.getElementById("chat-container");
     const askAiBtn = document.getElementById("ask-ai-btn");
-    const script = document.querySelector('script[src*="script.js"]');
 
     if (chatContainer) {
       chatContainer.remove();
@@ -119,20 +128,24 @@ class ChatbotManager {
     }
   }
 
-  injectChatbot() {
-    const waitForElement = setInterval(() => {
-      const mainco = document.querySelector(
-        ".coding_leftside_scroll__CMpky.pb-5"
-      );
-      if (mainco) {
-        clearInterval(waitForElement);
-        this.createChatbotElements(mainco);
-      }
-    }, 500);
+  async injectChatbot() {
+    return new Promise((resolve) => {
+      const waitForElement = setInterval(() => {
+        const mainco = document.querySelector(
+          ".coding_leftside_scroll__CMpky.pb-5"
+        );
+        if (mainco) {
+          clearInterval(waitForElement);
+          this.createChatbotElements(mainco);
+          resolve();
+        }
+      }, 500);
 
-    setTimeout(() => {
-      clearInterval(waitForElement);
-    }, 10000);
+      setTimeout(() => {
+        clearInterval(waitForElement);
+        resolve();
+      }, 10000);
+    });
   }
 
   createChatbotElements(mainco) {
@@ -166,14 +179,20 @@ class ChatbotManager {
     this.initializeChatFunctionality();
     this.chatbotInjected = true;
 
-    if (!document.querySelector('script[src*="script.js"]')) {
-      console.log("adding script");
+    // Inject script.js into the webpage
+    const script = document.createElement("script");
+    script.src = chrome.runtime.getURL("script.js");
+    script.onload = () => {
+      // After script loads, create AIChat instance via a custom event
+      const event = new CustomEvent("initAIChat");
+      document.dispatchEvent(event);
+    };
+    (document.head || document.documentElement).appendChild(script);
 
-      const script = document.createElement("script");
-      script.type = "text/javascript";
-      script.src = chrome.runtime.getURL("script.js");
-      document.body.appendChild(script);
-    }
+    // Listen for AIChat instance creation
+    document.addEventListener("aiChatCreated", (event) => {
+      console.log("AIChat instance created");
+    });
   }
 
   initializeChatFunctionality() {
@@ -201,4 +220,5 @@ class ChatbotManager {
   }
 }
 
+// Initialize the manager
 const chatbotManager = new ChatbotManager();

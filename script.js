@@ -1,25 +1,60 @@
-// script.js
 class AIChat {
   constructor() {
+    // DOM elements
     this.messagesContainer = document.getElementById("chat-messages");
     this.userInput = document.getElementById("user-input");
     this.sendButton = document.getElementById("send-message");
+
+    // State variables
     this.conversationHistory = [];
     this.problemData = null;
     this.userCode = null;
     this.studentId = null;
+    this.isInitialized = false;
 
+    // Bind methods to preserve 'this' context
     this.sendMessage = this.sendMessage.bind(this);
     this.handleKeyPress = this.handleKeyPress.bind(this);
+    this.cleanup = this.cleanup.bind(this);
 
+    // Initialize
     this.setupEventListeners();
     this.initialize();
   }
 
   setupEventListeners() {
+    if (!this.sendButton || !this.userInput) {
+      console.error("Required DOM elements not found");
+      return;
+    }
+
     console.log("Setting up event listeners");
-    this.sendButton.onclick = this.sendMessage;
-    this.userInput.onkeydown = this.handleKeyPress;
+    this.sendButton.addEventListener("click", this.sendMessage);
+    this.userInput.addEventListener("keydown", this.handleKeyPress);
+  }
+
+  cleanup() {
+    console.log("Cleaning up AIChat instance");
+
+    // Remove event listeners
+    if (this.sendButton) {
+      this.sendButton.removeEventListener("click", this.sendMessage);
+    }
+    if (this.userInput) {
+      this.userInput.removeEventListener("keydown", this.handleKeyPress);
+    }
+
+    // Clear state
+    this.conversationHistory = [];
+    this.problemData = null;
+    this.userCode = null;
+    this.studentId = null;
+    this.isInitialized = false;
+
+    // Clear DOM references
+    this.messagesContainer = null;
+    this.userInput = null;
+    this.sendButton = null;
   }
 
   handleKeyPress(e) {
@@ -30,22 +65,22 @@ class AIChat {
   }
 
   async initialize() {
-    await this.fetchUserProfile();
-    await this.fetchProblemData();
-    this.getCurrentCode();
+    try {
+      await this.fetchUserProfile();
+      if (this.studentId) {
+        await Promise.all([this.fetchProblemData(), this.getCurrentCode()]);
+      }
+      this.isInitialized = true;
+      console.log("AIChat initialized successfully");
+    } catch (error) {
+      console.error("Failed to initialize AIChat:", error);
+    }
   }
 
   async fetchUserProfile() {
     try {
-      const accessToken = document.cookie
-        .split(";")
-        .find((cookie) => cookie.trim().startsWith("access_token="))
-        ?.split("=")[1];
-
-      if (!accessToken) {
-        console.error("No access token found");
-        return;
-      }
+      const accessToken = this.getAccessToken();
+      if (!accessToken) return;
 
       const response = await fetch(
         "https://api2.maang.in/users/profile/private",
@@ -56,53 +91,55 @@ class AIChat {
         }
       );
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const profileData = await response.json();
       this.studentId = profileData.data.id;
       console.log("Got student ID:", this.studentId);
     } catch (error) {
       console.error("Error fetching user profile:", error);
+      throw error;
     }
   }
 
   async fetchProblemData() {
     const match = window.location.pathname.match(/\/problems\/.*?-(\d+)/);
-    if (match) {
+    if (!match) return;
+
+    try {
       const problemId = match[1];
-      try {
-        const accessToken = document.cookie
-          .split(";")
-          .find((cookie) => cookie.trim().startsWith("access_token="))
-          ?.split("=")[1];
+      const accessToken = this.getAccessToken();
+      if (!accessToken) return;
 
-        if (!accessToken) {
-          console.error("No access token found");
-          return;
+      const response = await fetch(
+        `https://api2.maang.in/problems/user/${problemId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
         }
+      );
 
-        const response = await fetch(
-          `https://api2.maang.in/problems/user/${problemId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }
-        );
-
-        this.problemData = await response.json();
-        console.log("Problem data:", this.problemData);
-      } catch (error) {
-        console.error("Error fetching problem data:", error);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      this.problemData = await response.json();
+      console.log("Problem data fetched successfully");
+    } catch (error) {
+      console.error("Error fetching problem data:", error);
+      throw error;
     }
   }
 
-  getCurrentCode() {
+  async getCurrentCode() {
     if (!this.studentId) {
       console.error("Student ID not available");
       return;
     }
 
-    // Get current language from the div
     const languageDiv = document.querySelector(
       ".d-flex.align-items-center.gap-1.text-blue-dark"
     );
@@ -113,7 +150,6 @@ class AIChat {
       return;
     }
 
-    // Get question number from URL
     const match = window.location.pathname.match(/\/problems\/.*?-(\d+)/);
     const questionId = match ? match[1] : null;
 
@@ -122,27 +158,69 @@ class AIChat {
       return;
     }
 
-    // Form localStorage key and get code
     const key = `course_${this.studentId}_${questionId}_${language}`;
     this.userCode = localStorage.getItem(key);
-    console.log("Current user code:", this.userCode);
+
+    // Set up a storage event listener to update code when it changes
+    window.addEventListener("storage", (e) => {
+      if (e.key === key) {
+        this.userCode = e.newValue;
+        console.log("Code updated:", this.userCode);
+      }
+    });
+  }
+
+  getAccessToken() {
+    const accessToken = document.cookie
+      .split(";")
+      .find((cookie) => cookie.trim().startsWith("access_token="))
+      ?.split("=")[1];
+
+    if (!accessToken) {
+      console.error("No access token found");
+      return null;
+    }
+
+    return accessToken;
   }
 
   async sendMessage() {
-    const message = this.userInput.value.trim();
-    console.log("Sending message:", message);
+    if (!this.isInitialized) {
+      console.error("AIChat not fully initialized");
+      return;
+    }
 
+    const message = this.userInput?.value?.trim();
     if (!message) return;
 
+    console.log("Sending message:", message);
     this.addMessage(message, "user");
     this.userInput.value = "";
 
-    // Add user message to conversation history
     this.conversationHistory.push({
       role: "user",
       content: message,
     });
 
+    const thinkingDiv = this.showThinkingIndicator();
+
+    try {
+      const response = await this.getAIResponse(message);
+      thinkingDiv.remove();
+      this.addMessage(response, "ai");
+
+      this.conversationHistory.push({
+        role: "assistant",
+        content: response,
+      });
+    } catch (error) {
+      console.error("Error getting AI response:", error);
+      thinkingDiv.remove();
+      this.addMessage("Sorry, I encountered an error. Please try again.", "ai");
+    }
+  }
+
+  showThinkingIndicator() {
     const thinkingDiv = document.createElement("div");
     thinkingDiv.className = "thinking-bubble";
     thinkingDiv.innerHTML = `
@@ -150,28 +228,14 @@ class AIChat {
       <div class="thinking-dot"></div>
       <div class="thinking-dot"></div>
     `;
-    this.messagesContainer.appendChild(thinkingDiv);
+    this.messagesContainer?.appendChild(thinkingDiv);
     this.scrollToBottom();
-
-    try {
-      console.log("Getting AI response...");
-      const response = await this.getAIResponse(message);
-      thinkingDiv.remove();
-      this.addMessage(response, "ai");
-
-      // Add AI response to conversation history
-      this.conversationHistory.push({
-        role: "assistant",
-        content: response,
-      });
-    } catch (error) {
-      console.error("Error:", error);
-      thinkingDiv.remove();
-      this.addMessage("Sorry, I encountered an error. Please try again.", "ai");
-    }
+    return thinkingDiv;
   }
 
   addMessage(content, type) {
+    if (!this.messagesContainer) return;
+
     const messageDiv = document.createElement("div");
     messageDiv.className = `message ${type}-message`;
     messageDiv.textContent = content;
@@ -180,7 +244,10 @@ class AIChat {
   }
 
   scrollToBottom() {
-    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+    if (this.messagesContainer) {
+      this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+    }
+
     const mainco = document.querySelector(
       ".coding_leftside_scroll__CMpky.pb-5"
     );
@@ -189,15 +256,10 @@ class AIChat {
     }
   }
 
-  async getAIResponse(message) {
-    const API_KEY = "AIzaSyB0LRP3gTieo4xZxvQGEWgOO_FWXVO0wfM";
-    const API_URL =
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";
+  formatProblemContext() {
+    if (!this.problemData?.data) return "No problem data available";
 
-    const contextMessage = {
-      role: "system",
-      content: this.problemData
-        ? `Problem: ${this.problemData.data.title}
+    return `Problem: ${this.problemData.data.title}
 Description: ${this.problemData.data.body}
 Input Format: ${this.problemData.data.input_format}
 Output Format: ${this.problemData.data.output_format}
@@ -206,12 +268,19 @@ Solution Approach: ${this.problemData.data.hints?.solution_approach || ""}
 Example Solution: ${this.problemData.data.editorial_code?.[0]?.code || ""}
 
 Your Current Code:
-${this.userCode || "No code written yet"}`
-        : "No problem data available",
-    };
-    console.log(this.userCode);
+${this.userCode || "No code written yet"}`;
+  }
 
-    // Format conversation history into a single prompt
+  async getAIResponse(message) {
+    const API_KEY = "YOUR_API_KEY"; // Replace with actual API key
+    const API_URL =
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";
+
+    const contextMessage = {
+      role: "system",
+      content: this.formatProblemContext(),
+    };
+
     const formattedHistory = [contextMessage, ...this.conversationHistory]
       .map((msg) => {
         if (msg.role === "system") {
@@ -242,14 +311,18 @@ ${this.userCode || "No code written yet"}`
     });
 
     if (!response.ok) {
-      throw new Error("Failed to get AI response");
+      throw new Error(`API request failed with status ${response.status}`);
     }
 
     const data = await response.json();
-    console.log("Got AI response:", data);
     return data.candidates[0].content.parts[0].text;
   }
 }
 
-console.log("Initializing AIChat...");
-const aiChat = new AIChat();
+// Listen for initialization event
+document.addEventListener("initAIChat", () => {
+  console.log("Initializing AIChat from webpage context");
+  window.aiChatInstance = new AIChat();
+  // Notify the extension that AIChat was created
+  document.dispatchEvent(new CustomEvent("aiChatCreated"));
+});
