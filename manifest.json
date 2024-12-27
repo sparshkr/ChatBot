@@ -3,10 +3,12 @@
   "name": "LeetCode AI Assistant",
   "version": "1.0.0",
   "description": "Adds an AI assistant button to help with coding problems",
-  "permissions": ["activeTab", "scripting"],
-  "host_permissions": ["*://*.maang.in/*"],
+  "permissions": ["activeTab"],
+  "host_permissions": [
+    "*://*.maang.in/*",
+    "https://generativelanguage.googleapis.com/*"
+  ],
   "action": {
-    "default_popup": "popup.html",
     "default_icon": {
       "16": "assets/logo.png",
       "48": "assets/logo.png",
@@ -21,19 +23,13 @@
   "content_scripts": [
     {
       "matches": ["*://*.maang.in/*"],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "css": ["style.css"]
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": [
-        "chatbot.html",
-        "chatbot.js",
-        "style.css",
-        "script.js",
-        "highlight.min.js",
-        "marked.min.js"
-      ],
+      "resources": ["script.js", "style.css"],
       "matches": ["*://*.maang.in/*"]
     }
   ]
