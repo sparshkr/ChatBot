@@ -3,8 +3,8 @@
     left: 20px;
     bottom: 10px;
     padding: 8px 16px;
-    background: linear-gradient(135deg, #3B82F6, #2563EB);
-    color: white;
+    background: linear-gradient(to right, #033042, #005c83);
+    color: #ffffff;
     border: none;
     border-radius: 6px;
     font-weight: 500;
@@ -13,14 +13,8 @@
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-#ask-ai-btn:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15);
-}
-
 #ask-ai-btn.hidden {
-    opacity: 0;
-    pointer-events: none;
+    display: none;
 }
 
 #chat-container {
@@ -39,8 +33,8 @@
 
 #chat-header {
     padding: 15px;
-    background: linear-gradient(135deg, #3B82F6, #2563EB);
-    color: white;
+    background: #ddf6ff;
+    color: black;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -55,7 +49,7 @@
 .close-btn {
     background: none;
     border: none;
-    color: white;
+    color: #333;
     font-size: 24px;
     cursor: pointer;
     padding: 0;
@@ -80,8 +74,8 @@
 }
 
 .user-message {
-    background: linear-gradient(135deg, #3B82F6, #2563EB);
-    color: white;
+    background: #ddf6ff;
+    color: #1F2937;
     align-self: flex-end;
     border-bottom-right-radius: 2px;
 }
@@ -120,8 +114,8 @@
 }
 
 #send-message {
-    background: linear-gradient(135deg, #3B82F6, #2563EB);
-    color: white;
+    background: linear-gradient(to right, #033042, #005c83);
+    color: rgb(255, 255, 255);
     border: none;
     border-radius: 6px;
     width: 40px;
@@ -165,6 +159,89 @@
     40% { transform: translateY(-8px); }
 }
 
+/* Updated Code Block Styles */
+.code-block-wrapper {
+    position: relative;
+    margin: 1em 0;
+    background: #1E1E1E;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.message pre {
+    margin: 0;
+    padding: 1em;
+    overflow-x: auto;
+    background: #1E1E1E !important;
+}
+
+.message pre code {
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #D4D4D4 !important;
+}
+
+/* Monaco Editor Token Colors */
+.message pre code .mtk1 { color: #D4D4D4 !important; }  /* Default text */
+.message pre code .mtk2 { color: #569CD6 !important; }  /* Keywords */
+.message pre code .mtk3 { color: #CE9178 !important; }  /* Strings */
+.message pre code .mtk4 { color: #B5CEA8 !important; }  /* Numbers */
+.message pre code .mtk5 { color: #4EC9B0 !important; }  /* Class names */
+.message pre code .mtk6 { color: #DCDCAA !important; }  /* Functions */
+.message pre code .mtk7 { color: #C586C0 !important; }  /* Control keywords */
+.message pre code .mtk8 { color: #4FC1FF !important; }  /* Variables */
+.message pre code .mtk9 { color: #6A9955 !important; }  /* Comments */
+
+/* Specific syntax elements */
+.message pre code .keyword { color: #569CD6 !important; }
+.message pre code .string { color: #CE9178 !important; }
+.message pre code .number { color: #B5CEA8 !important; }
+.message pre code .class-name { color: #4EC9B0 !important; }
+.message pre code .function { color: #DCDCAA !important; }
+.message pre code .comment { color: #6A9955 !important; }
+
+/* Monaco line numbers if needed */
+.message pre code .line-numbers {
+    color: #858585 !important;
+    background: #1E1E1E !important;
+}
+
+/* Copy Button Styles */
+.copy-button {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+    z-index: 10;
+}
+
+.copy-button:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.copy-button svg {
+    width: 14px;
+    height: 14px;
+    stroke: currentColor;
+}
+
+.copy-button.copied {
+    background: #4EC9B0;
+    border-color: #4EC9B0;
+}
+
+/* Scrollbar Styles */
 #chat-messages::-webkit-scrollbar {
     width: 6px;
 }
@@ -180,4 +257,18 @@
 
 #chat-messages::-webkit-scrollbar-thumb:hover {
     background: #555;
+}
+
+/* Highlighted code specific styles */
+.highlighted-code {
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    color: #D4D4D4 !important;
+}
+
+/* Fallback styles for when Monaco fails */
+.fallback {
+    background: #1E1E1E;
+    color: #D4D4D4;
 }

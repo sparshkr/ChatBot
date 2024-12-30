@@ -1,14 +1,33 @@
+// content.js
+// content.js
 console.log("AI Assistant Extension loaded");
+
+// Add message listener for API key requests
+window.addEventListener("message", async function (event) {
+  // Only accept messages from the same window
+  if (event.source !== window) return;
+
+  if (event.data.type === "GET_API_KEY") {
+    // Get API key from chrome.storage
+    chrome.storage.sync.get(["aiApiKey"], function (result) {
+      window.postMessage(
+        {
+          type: "API_KEY_RESULT",
+          apiKey: result.aiApiKey,
+        },
+        "*"
+      );
+    });
+  }
+});
 
 class ChatbotManager {
   constructor() {
     this.chatbotInjected = false;
     this.currentPath = "";
-    this.aiChat = null;
     this.setupUrlMonitoring();
     this.setupDOMMonitoring();
   }
-
   setupUrlMonitoring() {
     let lastUrl = location.href;
     const observer = new MutationObserver(() => {
@@ -33,13 +52,9 @@ class ChatbotManager {
       const targetElement = document.querySelector(
         ".coding_leftside_scroll__CMpky.pb-5"
       );
-      const chatContainer = document.getElementById("chat-container");
 
-      if (targetElement && chatContainer) {
-        if (targetElement.lastElementChild !== chatContainer.parentElement) {
-          console.log("Reordering chat to bottom");
-          this.moveToBottom(targetElement);
-        }
+      if (targetElement && !document.getElementById("chat-container")) {
+        this.createChatbotElements(targetElement);
       }
     });
 
@@ -49,31 +64,19 @@ class ChatbotManager {
     });
   }
 
-  moveToBottom(targetElement) {
-    const container = document.getElementById("chat-container")?.parentElement;
-    const askAiBtn = document.getElementById("ask-ai-btn");
-
-    if (container) {
-      targetElement.appendChild(container);
-    } else if (askAiBtn) {
-      const newContainer = document.createElement("div");
-      newContainer.appendChild(askAiBtn);
-      targetElement.appendChild(newContainer);
-    }
-  }
-
-  async handleUrlChange() {
+  handleUrlChange() {
     const newPath = window.location.pathname;
     console.log("URL changed to:", newPath);
 
-    // Clean up old instance if exists
-    if (this.aiChat) {
-      await this.cleanupAIChat();
-    }
-
     if (newPath.startsWith("/problems/")) {
-      this.removeChatbot();
-      await this.injectChatbot();
+      const targetElement = document.querySelector(
+        ".coding_leftside_scroll__CMpky.pb-5"
+      );
+      if (targetElement) {
+        this.createChatbotElements(targetElement);
+        // Trigger chat reset when URL changes
+        document.dispatchEvent(new CustomEvent("resetAIChat"));
+      }
     } else {
       this.removeChatbot();
     }
@@ -81,38 +84,14 @@ class ChatbotManager {
     this.currentPath = newPath;
   }
 
-  async cleanupAIChat() {
-    if (this.aiChat) {
-      // Remove event listeners
-      this.aiChat.cleanup();
-      this.aiChat = null;
-    }
-  }
-
-  repositionChatbot(targetElement) {
-    const chatContainer = document.getElementById("chat-container");
-    const askAiBtn = document.getElementById("ask-ai-btn");
-    const container = document.createElement("div");
-
-    if (chatContainer && askAiBtn) {
-      container.appendChild(chatContainer);
-      container.appendChild(askAiBtn);
-      targetElement.appendChild(container);
-    } else {
-      this.createChatbotElements(targetElement);
-    }
-  }
-
   removeChatbot() {
     const chatContainer = document.getElementById("chat-container");
     const askAiBtn = document.getElementById("ask-ai-btn");
+    const existingScript = document.querySelector('script[src*="script.js"]');
 
-    if (chatContainer) {
-      chatContainer.remove();
-    }
-    if (askAiBtn) {
-      askAiBtn.remove();
-    }
+    if (chatContainer) chatContainer.remove();
+    if (askAiBtn) askAiBtn.remove();
+    if (existingScript) existingScript.remove();
 
     this.chatbotInjected = false;
   }
@@ -128,35 +107,19 @@ class ChatbotManager {
     }
   }
 
-  async injectChatbot() {
-    return new Promise((resolve) => {
-      const waitForElement = setInterval(() => {
-        const mainco = document.querySelector(
-          ".coding_leftside_scroll__CMpky.pb-5"
-        );
-        if (mainco) {
-          clearInterval(waitForElement);
-          this.createChatbotElements(mainco);
-          resolve();
-        }
-      }, 500);
-
-      setTimeout(() => {
-        clearInterval(waitForElement);
-        resolve();
-      }, 10000);
-    });
-  }
-
   createChatbotElements(mainco) {
     if (document.getElementById("chat-container")) {
       return;
     }
 
+    console.log("Creating chatbot elements");
     this.injectStyles();
 
-    const container = document.createElement("div");
-    container.innerHTML = `
+    const wrapper = document.createElement("div");
+    wrapper.style.paddingTop = "20px";
+    wrapper.style.position = "relative";
+
+    wrapper.innerHTML = `
       <div id="chat-container" class="hidden">
         <div id="chat-header">
           <h3>AI Coding Assistant</h3>
@@ -172,27 +135,28 @@ class ChatbotManager {
           </button>
         </div>
       </div>
-      <button id="ask-ai-btn" class="pulse">Ask AI</button>
+      <button id="ask-ai-btn">Ask AI</button>
     `;
 
-    mainco.appendChild(container);
+    mainco.appendChild(wrapper);
+
+    // First inject marked.js
+    const markedScript = document.createElement("script");
+    markedScript.src = chrome.runtime.getURL("marked.min.js");
+    markedScript.onload = () => {
+      // After marked.js is loaded, inject script.js
+      const script = document.createElement("script");
+      script.src = chrome.runtime.getURL("script.js");
+      script.onload = () => {
+        const event = new CustomEvent("initAIChat");
+        document.dispatchEvent(event);
+      };
+      (document.head || document.documentElement).appendChild(script);
+    };
+    (document.head || document.documentElement).appendChild(markedScript);
+
     this.initializeChatFunctionality();
     this.chatbotInjected = true;
-
-    // Inject script.js into the webpage
-    const script = document.createElement("script");
-    script.src = chrome.runtime.getURL("script.js");
-    script.onload = () => {
-      // After script loads, create AIChat instance via a custom event
-      const event = new CustomEvent("initAIChat");
-      document.dispatchEvent(event);
-    };
-    (document.head || document.documentElement).appendChild(script);
-
-    // Listen for AIChat instance creation
-    document.addEventListener("aiChatCreated", (event) => {
-      console.log("AIChat instance created");
-    });
   }
 
   initializeChatFunctionality() {
