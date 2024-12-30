@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "LeetCode AI Assistant",
+  "name": "AZ AI Assistant",
   "version": "1.0.0",
   "description": "Adds an AI assistant button to help with coding problems",
   "permissions": ["activeTab", "storage"],
